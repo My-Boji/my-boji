@@ -30,8 +30,11 @@ jobs:
         run: npm install
 
       - name: Build web application
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
-
+        
       - name: Generate Android project if missing
         run: |
           if [ ! -d android ]; then
