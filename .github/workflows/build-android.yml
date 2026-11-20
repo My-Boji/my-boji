@@ -41,6 +41,10 @@ jobs:
             npx cap add android
           fi
 
+      - name: Generate Android launcher and splash assets
+        run: npm run assets:generate
+
+      
       - name: Sync Capacitor
         run: npx cap sync android
 
