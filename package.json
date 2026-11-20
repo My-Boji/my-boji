@@ -10,7 +10,9 @@
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
     "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease"
+    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "assets:generate": "capacitor-assets generate --android",
+    "android:ci": "npm run build && cap sync android"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",

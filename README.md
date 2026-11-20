@@ -7,12 +7,12 @@ Arabic-first RTL automotive and motorcycle spare-parts storefront. The project r
 ## Existing functionality preserved
 
 - Supabase-backed public product catalog (published products only).
-- Product search and car/motorcycle category filtering.
+- Product search and independent vehicle-type (car/motorcycle) and condition (new/used) filters.
 - Product details and WhatsApp inquiries.
 - Supabase email/password owner sign-in.
 - Admin access allowlist using `admin_profiles`.
 - Owner product create/edit/delete, stock, publication and featured controls.
-- Category management and product image upload.
+- Multi-photo product galleries using the existing `product-images` Supabase Storage bucket.
 - PostgreSQL schema and Row Level Security policies in `supabase/schema.sql`.
 
 ## Requirements
@@ -25,13 +25,14 @@ Arabic-first RTL automotive and motorcycle spare-parts storefront. The project r
 ## 1. Supabase setup
 
 1. Run all of `supabase/schema.sql` in the Supabase SQL Editor.
-2. Create the owner account under **Authentication → Users**. Disable public sign-ups.
-3. Copy the owner's auth user UUID and add it to `public.admin_profiles`:
+2. Run `supabase/migrations/202611200001_product_image_gallery.sql` to create the safe product gallery table and backfill existing single-image products.
+3. Create the owner account under **Authentication → Users**. Disable public sign-ups.
+4. Copy the owner's auth user UUID and add it to `public.admin_profiles`:
    ```sql
    insert into public.admin_profiles (user_id)
    values ('OWNER-AUTH-USER-UUID');
    ```
-4. Copy the Supabase Project URL and public anon/publishable key.
+5. Copy the Supabase Project URL and public anon/publishable key.
 
 Authentication alone does not grant administrator access. The authenticated UUID must be allowlisted in `admin_profiles`; database RLS remains the security boundary.
 
@@ -175,7 +176,7 @@ For an APK release: open the repository on GitHub → **Releases** → **Draft a
 - There is no seller registration flow. The public-facing "sell a part" contact routes to the owner WhatsApp number.
 - The frontend only uses Supabase anon/publishable credentials. Never use a service-role key in Vite variables.
 - The admin UI checks the signed-in user's UUID against `admin_profiles`; RLS policies enforce access on the database and storage.
-- Public users can read published products and categories; owner-only policies control writes and unpublished product access.
+- Public users can read published products; legacy categories remain in the schema for compatibility. Owner-only policies control writes and unpublished product access.
 - Product images are public-read and owner-write, as configured in the supplied SQL.
 - WhatsApp links are intercepted on native Android and opened through Capacitor Browser; on the website they remain normal links.
 
@@ -184,3 +185,38 @@ For an APK release: open the repository on GitHub → **Releases** → **Draft a
 This delivery is **not an APK**. The supplied ZIP contains the React/Vite source, Capacitor configuration, branding artwork and build scripts, but it does not contain a generated `android/` directory. An attempt to install dependencies in the build environment failed because `registry.npmjs.org` could not be resolved (DNS/network unavailable); offline installation also confirmed the required Capacitor packages are not cached. No Android SDK, `adb`, `sdkmanager`, or Gradle executable is configured in that environment. Therefore `cap add android`, Gradle compilation, APK validation, and device testing were not performed. No APK is claimed to have been generated.
 
 The existing `package-lock.json` predates the Capacitor dependencies listed in `package.json`. On a machine with npm registry access, run `npm install` first to refresh the lockfile, then follow section 4 to generate the Android project. The `.env` file was not present in the supplied ZIP and has not been created or modified.
+
+## November 2026 storefront update
+
+### WhatsApp routing
+
+- Product purchase questions use `https://wa.me/963988913578` and include product details in the prefilled message.
+- Seller/consignment contact uses `https://wa.me/963937306331`.
+
+### Product image gallery database migration
+
+Before using multiple product photos, open the Supabase SQL Editor for the existing project and run:
+
+`supabase/migrations/202611200001_product_image_gallery.sql`
+
+This additive migration creates `public.product_images`, enables RLS, grants public read access only for published products (and the allowlisted owner), restricts writes to `public.is_store_owner()`, and backfills existing `products.image_url` values. It does not drop the legacy `image_url` column or existing categories table. The existing `product-images` storage bucket and its owner-only write policies remain in use.
+
+### New storefront controls
+
+- Vehicle-type filters (cars/motorcycles) remain independent from condition filters (all/new/used) and text search.
+- The owner form no longer manages catalog categories; the vehicle type field remains.
+- Product cards retain one cover photo. Product details include a thumbnail gallery and a full-screen viewer with zoom buttons, mouse-wheel zoom, drag-to-pan, and two-finger pointer zoom where supported by the browser/WebView.
+- Theme choice is stored in `localStorage` under `my-boji-theme`; first visit defaults to light mode.
+
+
+### Supabase secrets for GitHub Actions APK builds
+
+In the GitHub repository, open **Settings → Secrets and variables → Actions** and add `VITE_SUPABASE_URL` plus either `VITE_SUPABASE_ANON_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY`. These are the public browser keys used by the existing frontend; do not add a service-role or secret key. The Android workflow checks these values and stops rather than producing an APK that silently has no backend connection.
+
+### Generate Android assets and APK in GitHub Actions
+
+The workflow `.github/workflows/android-apk.yml` installs npm dependencies (including the Capacitor entries added to the package manifest), regenerates Android assets from `resources/`, builds Vite, generates the Capacitor Android project, compiles a debug APK, and uploads it as the `My-Boji-Android-APK` artifact. Run it from **Actions → Build My Boji Android APK → Run workflow**. Tag pushes matching `v*` also publish the APK as a GitHub Release asset.
+
+The workflow produces a **debug-signed APK**, suitable for installation/testing but not a production signing identity. For Play Store or long-term direct distribution, configure a private release keystore and GitHub Actions secrets, then add a separate `assembleRelease` signing job. Never commit the keystore, passwords, `.env`, or Supabase service-role key.
+
+> Dependency note for this source snapshot: the inherited `package-lock.json` predates the Capacitor packages in `package.json`. Use `npm install` for the first install (not `npm ci`) so npm refreshes the lockfile. The GitHub Actions workflow intentionally uses `npm install` for this reason.
